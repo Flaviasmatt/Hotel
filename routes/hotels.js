@@ -1,3 +1,5 @@
+const cache = require('../middleware/caching.js');
+const client = require('../redis.js');
 var express = require('express');
 var router = express.Router();
 var bodyParser = require('body-parser')
@@ -8,19 +10,16 @@ var hotelService = new HotelService(db);
 var { checkIfAuthorized, isAdmin } = require("./authMiddlewares")
 
 /* GET hotels listing. */
-router.get('/', async function(req, res, next) {
-  const hotels = await hotelService.get();
-  const username = req.user?.username ?? 0;
-  res.render('hotels', { hotels: hotels, user: req.user, username });
+router.get('/', cache, async function (req, res, next) {
+  try {
+    const hotels = await hotelService.get(); // ou como estiver sua função para buscar hotéis
+    await client.set(req.originalUrl, JSON.stringify(hotels)); // salva no cache
+    res.render('hotels', { hotels: hotels }); // renderiza normalmente
+  } catch (error) {
+    next(error); // trata erros caso ocorram
+  }
 });
 
-router.get('/:hotelId', async function(req, res, next) {
-  const userId = req.user?.id ?? 0;
-  const username = req.user?.username ?? 0;
-  const hotel = await hotelService.getHotelDetails(req.params.hotelId, userId);
-  console.log(hotel);
-  res.render('hotelDetails', { hotel: hotel, userId, user: req.user, username });
-});
 
 router.post('/:hotelId/rate', checkIfAuthorized, jsonParser, async function(req, res, next) {
   let value = req.body.Value;
